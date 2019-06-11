@@ -754,12 +754,13 @@ int Scl_CommandStime( Abc_Frame_t * pAbc, int argc, char **argv )
     int c;
     int fShowAll      = 0;
     int fUseWireLoads = 0;
+    int fUseSpefLoads = 0;
     int fPrintPath    = 0;
     int fDumpStats    = 0;
     int nTreeCRatio   = 0;
 
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "Xcapdh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "Xcxapdh" ) ) != EOF )
     {
         switch ( c )
         {
@@ -776,6 +777,9 @@ int Scl_CommandStime( Abc_Frame_t * pAbc, int argc, char **argv )
                 break;
             case 'c':
                 fUseWireLoads ^= 1;
+                break;
+            case 'x':
+                fUseSpefLoads ^= 1;
                 break;
             case 'a':
                 fShowAll ^= 1;
@@ -813,15 +817,21 @@ int Scl_CommandStime( Abc_Frame_t * pAbc, int argc, char **argv )
         fprintf( pAbc->Err, "There is no Liberty library available.\n" );
         return 1;
     }
+    if ( fUseWireLoads && fUseSpefLoads )
+    {
+        fprintf( pAbc->Err, "Both -x and -c flags provided. Cannot use both WLMs and SPEF.\n" );
+        return 1;
+    }
 
-    Abc_SclTimePerform( (SC_Lib *)pAbc->pLibScl, Abc_FrameReadNtk(pAbc), nTreeCRatio, fUseWireLoads, fShowAll, fPrintPath, fDumpStats );
+    Abc_SclTimePerform( (SC_Lib *)pAbc->pLibScl, Abc_FrameReadNtk(pAbc), nTreeCRatio, fUseWireLoads, fUseSpefLoads, fShowAll, fPrintPath, fDumpStats );
     return 0;
 
 usage:
-    fprintf( pAbc->Err, "usage: stime [-X num] [-capdth]\n" );
+    fprintf( pAbc->Err, "usage: stime [-X num] [-cxapdh]\n" );
     fprintf( pAbc->Err, "\t         performs STA using Liberty library\n" );
     fprintf( pAbc->Err, "\t-X     : min Cout/Cave ratio for tree estimations [default = %d]\n", nTreeCRatio );
     fprintf( pAbc->Err, "\t-c     : toggle using wire-loads if specified [default = %s]\n", fUseWireLoads? "yes": "no" );
+    fprintf( pAbc->Err, "\t-x     : use placement aware wire load calculation. [default = %s]\n", fUseSpefLoads? "yes": "no"  );
     fprintf( pAbc->Err, "\t-a     : display timing information for all nodes [default = %s]\n", fShowAll? "yes": "no" );
     fprintf( pAbc->Err, "\t-p     : display timing information for critical path [default = %s]\n", fPrintPath? "yes": "no" );
     fprintf( pAbc->Err, "\t-d     : toggle dumping statistics into a file [default = %s]\n", fDumpStats? "yes": "no" );
@@ -967,6 +977,7 @@ usage:
 ***********************************************************************/
 int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
 {
+    int fUserSFlag = 0, fUserNFlag = 0;
     SC_BusPars Pars, * pPars = &Pars;
     Abc_Ntk_t * pNtkRes, * pNtk = Abc_FrameReadNtk(pAbc);
     int c;
@@ -978,10 +989,11 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
     pPars->fAddBufs      =    1;
     pPars->fBufPis       =    0;
     pPars->fUseWireLoads =    0;
+    pPars->fUseSpefLoads =    0;
     pPars->fVerbose      =    0;
     pPars->fVeryVerbose  =    0;
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "GSNsbpcvwh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "GSNsbpcxvwh" ) ) != EOF )
     {
         switch ( c )
         {
@@ -1004,6 +1016,7 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
             }
             pPars->Slew = atoi(argv[globalUtilOptind]);
             globalUtilOptind++;
+            fUserSFlag = 1;
             if ( pPars->Slew < 0 ) 
                 goto usage;
             break;
@@ -1015,6 +1028,7 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
             }
             pPars->nDegree = atoi(argv[globalUtilOptind]);
             globalUtilOptind++;
+            fUserNFlag = 1;
             if ( pPars->nDegree < 0 ) 
                 goto usage;
             break;
@@ -1029,6 +1043,9 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
             break;
         case 'c':
             pPars->fUseWireLoads ^= 1;
+            break;
+        case 'x':
+            pPars->fUseSpefLoads ^= 1;
             break;
         case 'v':
             pPars->fVerbose ^= 1;
@@ -1063,6 +1080,22 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
         Abc_Print( -1, "Library delay info is not available.\n" );
         return 1;
     }
+    if ( pPars->fUseWireLoads && pPars->fUseSpefLoads )
+    {
+        Abc_Print( ABC_ERROR, "Both -x and -c flags provided. Cannot use both WLMs and SPEF.\n" );
+        return 1;
+    }
+    // Use the values in global frame for target slew (max transition) and max fanout
+    if ( pAbc->MaxFanout != 0 && fUserNFlag == 0) {
+        pPars->nDegree = pAbc->MaxFanout;
+        printf("Using Max Fanout %d read from SDC file.\n", pPars->nDegree);
+    }
+    if ( pAbc->MaxFanout != 0 && fUserSFlag == 0) {
+        pPars->Slew = pAbc->MaxTransition;
+        printf("Using Max Transition %d read from SDC file.\n", pPars->Slew);
+    }
+
+
     // modify the current network
     pNtkRes = Abc_SclBufferingPerform( pNtk, (SC_Lib *)pAbc->pLibScl, pPars );
     if ( pNtkRes == NULL )
@@ -1075,7 +1108,7 @@ int Scl_CommandBuffer( Abc_Frame_t * pAbc, int argc, char ** argv )
     return 0;
 
 usage:
-    fprintf( pAbc->Err, "usage: buffer [-GSN num] [-sbpcvwh]\n" );
+    fprintf( pAbc->Err, "usage: buffer [-GSN num] [-sbpcxvwh]\n" );
     fprintf( pAbc->Err, "\t           performs buffering and sizing and mapped network\n" );
     fprintf( pAbc->Err, "\t-G <num> : target gain percentage [default = %d]\n", pPars->GainRatio );
     fprintf( pAbc->Err, "\t-S <num> : target slew in pisoseconds [default = %d]\n", pPars->Slew );
@@ -1084,6 +1117,7 @@ usage:
     fprintf( pAbc->Err, "\t-b       : toggle using buffers instead of inverters [default = %s]\n", pPars->fAddBufs? "yes": "no" );
     fprintf( pAbc->Err, "\t-p       : toggle buffering primary inputs [default = %s]\n", pPars->fBufPis? "yes": "no" );
     fprintf( pAbc->Err, "\t-c       : toggle using wire-loads if specified [default = %s]\n", pPars->fUseWireLoads? "yes": "no" );
+    fprintf( pAbc->Err, "\t-x       : use placement aware wire load calculation. [default = %s]\n", pPars->fUseSpefLoads? "yes": "no" );
     fprintf( pAbc->Err, "\t-v       : toggle printing verbose information [default = %s]\n", pPars->fVerbose? "yes": "no" );
     fprintf( pAbc->Err, "\t-w       : toggle printing more verbose information [default = %s]\n", pPars->fVeryVerbose? "yes": "no" );
     fprintf( pAbc->Err, "\t-h       : print the command usage\n");
@@ -1369,6 +1403,7 @@ usage:
 ***********************************************************************/
 int Scl_CommandUpsize( Abc_Frame_t * pAbc, int argc, char **argv )
 {
+    int fUserDFlag = 0;
     SC_SizePars Pars, * pPars = &Pars;
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
     int c;
@@ -1385,11 +1420,12 @@ int Scl_CommandUpsize( Abc_Frame_t * pAbc, int argc, char **argv )
     pPars->BypassFreq    =    0;
     pPars->fUseDept      =    1;
     pPars->fUseWireLoads =    0;
+    pPars->fUseSpefLoads =    0;
     pPars->fDumpStats    =    0;
     pPars->fVerbose      =    0;
     pPars->fVeryVerbose  =    0;
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "IJWRNDGTXBcsdvwh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "IJWRNDGTXBcxsdvwh" ) ) != EOF )
     {
         switch ( c )
         {
@@ -1456,6 +1492,7 @@ int Scl_CommandUpsize( Abc_Frame_t * pAbc, int argc, char **argv )
             }
             pPars->DelayUser = atoi(argv[globalUtilOptind]);
             globalUtilOptind++;
+            fUserDFlag = 1;
             if ( pPars->DelayUser < 0 ) 
                 goto usage;
             break;
@@ -1504,6 +1541,9 @@ int Scl_CommandUpsize( Abc_Frame_t * pAbc, int argc, char **argv )
         case 'c':
             pPars->fUseWireLoads ^= 1;
             break;
+        case 'x':
+            pPars->fUseSpefLoads ^= 1;
+            break;
         case 's':
             pPars->fUseDept ^= 1;
             break;
@@ -1543,12 +1583,22 @@ int Scl_CommandUpsize( Abc_Frame_t * pAbc, int argc, char **argv )
         Abc_Print( -1, "Library delay info is not available.\n" );
         return 1;
     }
+    if ( pPars->fUseWireLoads && pPars->fUseSpefLoads )
+    {
+        fprintf( pAbc->Err, "Both -x and -c flags provided. Cannot use both WLMs and SPEF.\n" );
+        return 1;
+    }
+
+    if ( pAbc->ClockPeriod != 0 && fUserDFlag == 0) {
+        pPars->DelayUser = pAbc->ClockPeriod;
+        printf("Using Clock Period %d read from SDC file.\n", pPars->DelayUser);
+    }
 
     Abc_SclUpsizePerform( (SC_Lib *)pAbc->pLibScl, pNtk, pPars );
     return 0;
 
 usage:
-    fprintf( pAbc->Err, "usage: upsize [-IJWRNDGTXB num] [-csdvwh]\n" );
+    fprintf( pAbc->Err, "usage: upsize [-IJWRNDGTXB num] [-cxsdvwh]\n" );
     fprintf( pAbc->Err, "\t           selectively increases gate sizes on the critical path\n" );
     fprintf( pAbc->Err, "\t-I <num> : the number of upsizing iterations to perform [default = %d]\n", pPars->nIters );
     fprintf( pAbc->Err, "\t-J <num> : the number of iterations without improvement to stop [default = %d]\n", pPars->nIterNoChange );
@@ -1561,6 +1611,7 @@ usage:
     fprintf( pAbc->Err, "\t-X <num> : ratio for buffer tree estimation [default = %d]\n", pPars->BuffTreeEst );
     fprintf( pAbc->Err, "\t-B <num> : frequency of bypass transforms [default = %d]\n", pPars->BypassFreq );
     fprintf( pAbc->Err, "\t-c       : toggle using wire-loads if specified [default = %s]\n", pPars->fUseWireLoads? "yes": "no" );
+    fprintf( pAbc->Err, "\t-x       : use placement aware wire load calculation. [default = %s]\n", pPars->fUseSpefLoads? "yes": "no" );
     fprintf( pAbc->Err, "\t-s       : toggle using slack based on departure times [default = %s]\n", pPars->fUseDept? "yes": "no" );
     fprintf( pAbc->Err, "\t-d       : toggle dumping statistics into a file [default = %s]\n", pPars->fDumpStats? "yes": "no" );
     fprintf( pAbc->Err, "\t-v       : toggle printing verbose information [default = %s]\n", pPars->fVerbose? "yes": "no" );
@@ -1582,6 +1633,7 @@ usage:
 ***********************************************************************/
 int Scl_CommandDnsize( Abc_Frame_t * pAbc, int argc, char **argv )
 {
+    int fUserDFlag = 0;
     SC_SizePars Pars, * pPars = &Pars;
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
     int c;
@@ -1595,11 +1647,12 @@ int Scl_CommandDnsize( Abc_Frame_t * pAbc, int argc, char **argv )
     pPars->BuffTreeEst   =    0;
     pPars->fUseDept      =    1;
     pPars->fUseWireLoads =    0;
+    pPars->fUseSpefLoads =    0;
     pPars->fDumpStats    =    0;
     pPars->fVerbose      =    0;
     pPars->fVeryVerbose  =    0;
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "IJNDGTXcsdvwh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "IJNDGTXcxsdvwh" ) ) != EOF )
     {
         switch ( c )
         {
@@ -1644,6 +1697,7 @@ int Scl_CommandDnsize( Abc_Frame_t * pAbc, int argc, char **argv )
             }
             pPars->DelayUser = atoi(argv[globalUtilOptind]);
             globalUtilOptind++;
+            fUserDFlag = 1;
             if ( pPars->DelayUser < 0 ) 
                 goto usage;
             break;
@@ -1680,6 +1734,9 @@ int Scl_CommandDnsize( Abc_Frame_t * pAbc, int argc, char **argv )
             break;
         case 'c':
             pPars->fUseWireLoads ^= 1;
+            break;
+        case 'x':
+            pPars->fUseSpefLoads ^= 1;
             break;
         case 's':
             pPars->fUseDept ^= 1;
@@ -1720,6 +1777,16 @@ int Scl_CommandDnsize( Abc_Frame_t * pAbc, int argc, char **argv )
         Abc_Print( -1, "Library delay info is not available.\n" );
         return 1;
     }
+    if ( pPars->fUseWireLoads && pPars->fUseSpefLoads )
+    {
+        fprintf( pAbc->Err, "Both -x and -c flags provided. Cannot use both WLMs and SPEF.\n" );
+        return 1;
+    }
+
+    if ( pAbc->ClockPeriod != 0 && fUserDFlag == 0) {
+        pPars->DelayUser = pAbc->ClockPeriod;
+        printf("Using Clock Period %d read from SDC file.\n", pPars->DelayUser);
+    }
 
     Abc_SclDnsizePerform( (SC_Lib *)pAbc->pLibScl, pNtk, pPars );
     return 0;
@@ -1735,6 +1802,7 @@ usage:
     fprintf( pAbc->Err, "\t-T <num> : approximate timeout in seconds [default = %d]\n", pPars->TimeOut );
     fprintf( pAbc->Err, "\t-X <num> : ratio for buffer tree estimation [default = %d]\n", pPars->BuffTreeEst );
     fprintf( pAbc->Err, "\t-c       : toggle using wire-loads if specified [default = %s]\n", pPars->fUseWireLoads? "yes": "no" );
+    fprintf( pAbc->Err, "\t-x       : use placement aware wire load calculation. [default = %s]\n", pPars->fUseSpefLoads? "yes": "no" );
     fprintf( pAbc->Err, "\t-s       : toggle using slack based on departure times [default = %s]\n", pPars->fUseDept? "yes": "no" );
     fprintf( pAbc->Err, "\t-d       : toggle dumping statistics into a file [default = %s]\n", pPars->fDumpStats? "yes": "no" );
     fprintf( pAbc->Err, "\t-v       : toggle printing verbose information [default = %s]\n", pPars->fVerbose? "yes": "no" );
@@ -1820,17 +1888,21 @@ int Scl_CommandReadConstr( Abc_Frame_t * pAbc, int argc, char ** argv )
 {
     extern Abc_Nam_t * Abc_NtkNameMan( Abc_Ntk_t * p, int fOuts );
     extern void Abc_SclReadTimingConstr( Abc_Frame_t * pAbc, char * pFileName, int fVerbose );
+    extern void Abc_SclReadSDC( Abc_Frame_t * pAbc, char * pFileName, int fVerbose );
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
     FILE * pFile;
     char * pFileName;
     int fUseNewFormat = 0;
     int c, fVerbose = 0;
+    int fReadSDC = 0;
 
     Extra_UtilGetoptReset();
-    while ( ( c = Extra_UtilGetopt( argc, argv, "nvh" ) ) != EOF )
+    while ( ( c = Extra_UtilGetopt( argc, argv, "snvh" ) ) != EOF )
     {
         switch ( c )
         {
+        case 's':
+            fReadSDC ^= 1;
         case 'n':
             fVerbose ^= 1;
             break;
@@ -1855,7 +1927,9 @@ int Scl_CommandReadConstr( Abc_Frame_t * pAbc, int argc, char ** argv )
     }
     fclose( pFile );
 
-    if ( !fUseNewFormat )
+    if ( fReadSDC )
+        Abc_SclReadSDC( pAbc, pFileName, fVerbose);
+    else if ( !fUseNewFormat )
         Abc_SclReadTimingConstr( pAbc, pFileName, fVerbose );
     else
     {
@@ -1874,8 +1948,9 @@ int Scl_CommandReadConstr( Abc_Frame_t * pAbc, int argc, char ** argv )
     return 0;
 
 usage:
-    fprintf( pAbc->Err, "usage: read_constr [-nvh] <file>\n" );
+    fprintf( pAbc->Err, "usage: read_constr [-snvh] <file>\n" );
     fprintf( pAbc->Err, "\t         read file with timing constraints for standard-cell designs\n" );
+    fprintf( pAbc->Err, "\t-s     : toggle using Brown University's constraint parser [default = %s]\n", fReadSDC? "yes": "no" );
     fprintf( pAbc->Err, "\t-n     : toggle using new constraint file format [default = %s]\n", fUseNewFormat? "yes": "no" );
     fprintf( pAbc->Err, "\t-v     : toggle printing verbose information [default = %s]\n", fVerbose? "yes": "no" );
     fprintf( pAbc->Err, "\t-h     : prints the command summary\n" );

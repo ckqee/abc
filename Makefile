@@ -134,7 +134,7 @@ endif
 endif
 
 # LIBS := -ldl -lrt
-LIBS += -lm
+LIBS += -lm -ltcl
 ifneq ($(OS), FreeBSD)
   LIBS += -ldl
 endif

@@ -130,6 +130,7 @@ struct Abc_Obj_t_     // 48/72 bytes (32-bits/64-bits)
     Abc_Ntk_t *       pNtk;          // the host network
     Abc_Obj_t *       pNext;         // the next pointer in the hash table
     int               Id;            // the object ID
+    int               Name;
     unsigned          Type    :  4;  // the object type
     unsigned          fMarkA  :  1;  // the multipurpose mark
     unsigned          fMarkB  :  1;  // the multipurpose mark
@@ -343,6 +344,7 @@ static inline Abc_Obj_t * Abc_ObjCopyCond( Abc_Obj_t * pObj )        { return Ab
 static inline void        Abc_ObjSetLevel( Abc_Obj_t * pObj, int Level )         { pObj->Level =  Level;    } 
 static inline void        Abc_ObjSetCopy( Abc_Obj_t * pObj, Abc_Obj_t * pCopy )  { pObj->pCopy =  pCopy;    } 
 static inline void        Abc_ObjSetData( Abc_Obj_t * pObj, void * pData )       { pObj->pData =  pData;    } 
+static inline void        Abc_ObjSetName( Abc_Obj_t * pObj, int name )           { pObj->Name =  name;      }
 
 // checking the object type
 static inline int         Abc_ObjIsNone( Abc_Obj_t * pObj )          { return pObj->Type == ABC_OBJ_NONE;    }

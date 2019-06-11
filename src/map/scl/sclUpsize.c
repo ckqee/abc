@@ -881,6 +881,7 @@ void Abc_SclUpsizePerformInt( SC_Lib * pLib, Abc_Ntk_t * pNtk, SC_SizePars * pPa
         printf( "Update ratio =%3d %%. ", pPars->Ratio    );
         printf( "UseDept =%2d. ",         pPars->fUseDept );
         printf( "UseWL =%2d. ",           pPars->fUseWireLoads );
+        printf( "UseSPEF =%2d. ",         pPars->fUseSpefLoads );
         printf( "Target =%5d ps. ",       pPars->DelayUser );
         printf( "DelayGap =%3d ps. ",     pPars->DelayGap );
         printf( "Timeout =%4d sec",       pPars->TimeOut  );
@@ -890,7 +891,7 @@ void Abc_SclUpsizePerformInt( SC_Lib * pLib, Abc_Ntk_t * pNtk, SC_SizePars * pPa
     if ( pPars->Window == 1 )
         pPars->Window += (Abc_NtkNodeNum(pNtk) > 40000);
     // prepare the manager; collect init stats
-    p = Abc_SclManStart( pLib, pNtk, pPars->fUseWireLoads, pPars->fUseDept, 0, pPars->BuffTreeEst );
+    p = Abc_SclManStart( pLib, pNtk, pPars->fUseWireLoads, pPars->fUseSpefLoads, pPars->fUseDept, 0, pPars->BuffTreeEst );
     p->timeTotal  = Abc_Clock();
     assert( p->vGatesBest == NULL );
     p->vGatesBest = Vec_IntDup( p->pNtk->vGates );

@@ -47,6 +47,7 @@ struct Bus_Man_t_
     Vec_Flt_t *    vLoads;     // loads for all nodes
     Vec_Flt_t *    vDepts;     // departure times
     Vec_Ptr_t *    vFanouts;   // fanout array
+    st__table * tNameToCap;    // net name-cap hash table from SPEF (used only if SPEF wire loads enabled)
 };
 
 
@@ -89,13 +90,18 @@ Bus_Man_t * Bus_ManStart( Abc_Ntk_t * pNtk, SC_Lib * pLib, SC_BusPars * pPars )
         {            
             p->pWLoadUsed = Abc_SclFindWireLoadModel( pLib, Abc_SclGetTotalArea(pNtk) );
             if ( p->pWLoadUsed )
-            pNtk->pWLoadUsed = Abc_UtilStrsav( p->pWLoadUsed->pName );
+                pNtk->pWLoadUsed = Abc_UtilStrsav( p->pWLoadUsed->pName );
         }
         else
             p->pWLoadUsed = Abc_SclFetchWireLoadModel( pLib, pNtk->pWLoadUsed );
     }
+
     if ( p->pWLoadUsed )
-    p->vWireCaps = Abc_SclFindWireCaps( p->pWLoadUsed, Abc_NtkGetFanoutMax(pNtk) );
+        p->vWireCaps = Abc_SclFindWireCaps( p->pWLoadUsed, Abc_NtkGetFanoutMax(pNtk) );
+
+    if( pPars->fUseSpefLoads )
+        p->tNameToCap = Abc_SclGetSpefNameCapTable(p->pNtk,p->pLib->unit_cap_snd);
+
     p->vFanouts  = Vec_PtrAlloc( 100 );
     p->vCins     = Vec_FltAlloc( 2*Abc_NtkObjNumMax(pNtk) + 1000 );
     p->vETimes   = Vec_FltAlloc( 2*Abc_NtkObjNumMax(pNtk) + 1000 );
@@ -214,20 +220,31 @@ float Abc_NtkComputeNodeLoad( Bus_Man_t * p, Abc_Obj_t * pObj )
     float Load;
     int i;
     assert( Bus_SclObjLoad(pObj) == 0 );
-    Load = Abc_SclFindWireLoad( p->vWireCaps, Abc_ObjFanoutNum(pObj) );
+
+    if(p->pPars->fUseSpefLoads)
+        Load = Abc_SclFindSpefWireLoad(p->tNameToCap,pObj);
+    else
+        Load = Abc_SclFindWireLoad( p->vWireCaps, Abc_ObjFanoutNum(pObj) );
+
     Abc_ObjForEachFanout( pObj, pFanout, i )
         Load += Bus_SclObjCin( pFanout );
+
     Bus_SclObjSetLoad( pObj, Load );
     return Load;
 }
-float Abc_NtkComputeFanoutLoad( Bus_Man_t * p, Vec_Ptr_t * vFanouts )
+float Abc_NtkComputeFanoutLoad( Bus_Man_t * p, Vec_Ptr_t * vFanouts, Abc_Obj_t * pObj )
 {
     Abc_Obj_t * pFanout;
     float Load;
     int i;
-    Load = Abc_SclFindWireLoad( p->vWireCaps, Vec_PtrSize(vFanouts) );
+    if(p->pPars->fUseSpefLoads)
+        Load = Abc_SclFindSpefWireLoad(p->tNameToCap,pObj);
+    else
+        Load = Abc_SclFindWireLoad( p->vWireCaps, Vec_PtrSize(vFanouts) );
+
     Vec_PtrForEachEntry( Abc_Obj_t *, vFanouts, pFanout, i )
         Load += Bus_SclObjCin( pFanout );
+
     return Load;
 }
 void Abc_NtkPrintFanoutProfile( Abc_Obj_t * pObj )
@@ -345,15 +362,25 @@ Abc_Obj_t * Abc_SclAddOneInv( Bus_Man_t * p, Abc_Obj_t * pObj, Vec_Ptr_t * vFano
     SC_Cell * pCellNew;
     Abc_Obj_t * pFanout, * pInv;
     float Target = SC_CellPinCap(p->pInv, 0) * Gain;
-    float LoadWirePrev, LoadWireThis, LoadNew, Load = 0;
+    float LoadWirePrev, LoadWireThis, LoadNew = 0, Load = 0;
     int Limit = Abc_MinInt( p->pPars->nDegree, Vec_PtrSize(vFanouts) );
     int i, iStop;
     Bus_SclCheckSortedFanout( vFanouts );
     Vec_PtrForEachEntryStop( Abc_Obj_t *, vFanouts, pFanout, iStop, Limit )
     {
-        LoadWirePrev = Abc_SclFindWireLoad( p->vWireCaps, iStop );
-        LoadWireThis = Abc_SclFindWireLoad( p->vWireCaps, iStop+1 );
+        if(p->pPars->fUseSpefLoads)
+        {
+            LoadWirePrev = Abc_SclFindSpefWireLoadStop(p->tNameToCap,vFanouts,iStop);
+            LoadWireThis = Abc_SclFindSpefWireLoadStop(p->tNameToCap,vFanouts,iStop+1);
+        }
+        else
+        {
+            LoadWirePrev = Abc_SclFindWireLoad( p->vWireCaps, iStop );
+            LoadWireThis = Abc_SclFindWireLoad( p->vWireCaps, iStop+1 );
+        }
+
         Load += Bus_SclObjCin( pFanout ) - LoadWirePrev + LoadWireThis;
+
         if ( Load > Target )
         {
             iStop++;
@@ -385,7 +412,8 @@ Abc_Obj_t * Abc_SclAddOneInv( Bus_Man_t * p, Abc_Obj_t * pObj, Vec_Ptr_t * vFano
     // set departure and load
     Abc_NtkComputeNodeDeparture( pInv, p->pPars->Slew );
     LoadNew = Abc_NtkComputeNodeLoad( p, pInv );
-    assert( LoadNew - Load < 1 && Load - LoadNew < 1 );
+
+    //assert( LoadNew - Load < 1 && Load - LoadNew < 1 );
     // set fanout info for the inverter
     Bus_SclObjSetCin( pInv, SC_CellPinCap(pCellNew, 0) );
     Bus_SclObjSetETime( pInv, Abc_NtkComputeEdgeDept(pInv, 0, p->pPars->Slew) );
@@ -403,11 +431,16 @@ void Abc_SclBufSize( Bus_Man_t * p, float Gain )
     float GainGate, GainInv, Load, LoadNew, Cin, DeptMax = 0;
     GainGate = p->pPars->fAddBufs ? (float)pow( (double)Gain, (double)2.0 ) : Gain;
     GainInv  = p->pPars->fAddBufs ? (float)pow( (double)Gain, (double)2.0 ) : Gain;
+
     Abc_NtkForEachObjReverse( p->pNtk, pObj, i )
     {
         if ( !((Abc_ObjIsNode(pObj) && Abc_ObjFaninNum(pObj) > 0) || (Abc_ObjIsCi(pObj) && p->pPiDrive)) )
+        {
             if(!(Abc_ObjIsPi(pObj) && p->pPars->fBufPis) )
+            {
                 continue;
+            }
+        }
         if ( 2 * nObjsOld < Abc_NtkObjNumMax(p->pNtk) )
         {
             printf( "Buffering could not be completed because the gain value (%d) is too low.\n", p->pPars->GainRatio );
@@ -445,8 +478,10 @@ void Abc_SclBufSize( Bus_Man_t * p, float Gain )
                 pInv = Abc_SclAddOneInv( p, pObj, p->vFanouts, GainInv );
                 if ( p->pPars->fVeryVerbose )
                     Abc_SclOneNodePrint( p, pInv );
+
                 Bus_SclInsertFanout( p->vFanouts, pInv );
-                Load = Abc_NtkComputeFanoutLoad( p, p->vFanouts );
+
+                Load = Abc_NtkComputeFanoutLoad( p, p->vFanouts, pObj );
             }
             while ( Vec_PtrSize(p->vFanouts) > p->pPars->nDegree || (Vec_PtrSize(p->vFanouts) > 1 && Load > GainGate * Cin) );
             // update node fanouts
@@ -455,7 +490,7 @@ void Abc_SclBufSize( Bus_Man_t * p, float Gain )
                     Abc_ObjAddFanin( pFanout, pObj );
             Bus_SclObjSetLoad( pObj, 0 );
             LoadNew = Abc_NtkComputeNodeLoad( p, pObj );
-            assert( LoadNew - Load < 1 && Load - LoadNew < 1 );
+          //  assert( LoadNew - Load < 1 && Load - LoadNew < 1 );
         } 
         if ( Abc_ObjIsCi(pObj) )
             continue;

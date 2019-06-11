@@ -100,6 +100,10 @@ struct Abc_Frame_t_
     // timing constraints
     char *          pDrivingCell;  // name of the driving cell
     float           MaxLoad;       // maximum output load
+    float           ClockPeriod;   // Global clock from SDC file
+    float           MaxFanout;     // Global max fanout from SDC file
+    float           MaxTransition; // Global max transition from SDC file
+
     // inductive don't-cares
     Vec_Int_t *     vIndFlops;
     int             nIndFrames;

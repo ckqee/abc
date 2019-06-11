@@ -161,7 +161,7 @@ void Abc_SclTimeNtkPrint( SC_Man * p, int fShowAll, int fPrintPath )
     printf( "(%5.1f %%)   ",       100.0 * Abc_SclCountNearCriticalNodes(p) / Abc_NtkNodeNum(p->pNtk) );
     printf( "            \n" );
 #else
-    Abc_Print( 1, "WireLoad = \"%s\"  ",   p->pWLoadUsed ? p->pWLoadUsed->pName : "none" );
+    Abc_Print( 1, "WireLoad = \"%s\"  ",   p->pWLoadUsed ? p->pWLoadUsed->pName : p->fUseSpef ? "SPEF" : "none" );
     Abc_Print( 1, "%sGates =%7d%s ",       "\033[1;33m", Abc_NtkNodeNum(p->pNtk),      "\033[0m" ); // yellow
     Abc_Print( 1, "(%5.1f %%)   ",         100.0 * Abc_SclGetBufInvCount(p->pNtk) / Abc_NtkNodeNum(p->pNtk) );
     Abc_Print( 1, "%sCap =%5.1f ff%s ",    "\033[1;32m", p->EstLoadAve,                "\033[0m" ); // green
@@ -630,7 +630,7 @@ void Abc_SclManReadSlewAndLoad( SC_Man * p, Abc_Ntk_t * pNtk )
   SeeAlso     []
 
 ***********************************************************************/
-SC_Man * Abc_SclManStart( SC_Lib * pLib, Abc_Ntk_t * pNtk, int fUseWireLoads, int fDept, float DUser, int nTreeCRatio )
+SC_Man * Abc_SclManStart( SC_Lib * pLib, Abc_Ntk_t * pNtk, int fUseWireLoads, int fUseSpefLoads, int fDept, float DUser, int nTreeCRatio )
 {
     SC_Man * p = Abc_SclManAlloc( pLib, pNtk );
     if ( nTreeCRatio )
@@ -651,6 +651,12 @@ SC_Man * Abc_SclManStart( SC_Lib * pLib, Abc_Ntk_t * pNtk, int fUseWireLoads, in
         else
             p->pWLoadUsed = Abc_SclFetchWireLoadModel( pLib, pNtk->pWLoadUsed );
     }
+    if ( fUseSpefLoads )
+    {
+        // if default spef file not found error, else
+        p->fUseSpef = 1;
+        
+    }
     Abc_SclTimeNtkRecompute( p, &p->SumArea0, &p->MaxDelay0, fDept, DUser );
     p->SumArea  = p->SumArea0;
     p->MaxDelay = p->MaxDelay0;
@@ -668,10 +674,10 @@ SC_Man * Abc_SclManStart( SC_Lib * pLib, Abc_Ntk_t * pNtk, int fUseWireLoads, in
   SeeAlso     []
 
 ***********************************************************************/
-void Abc_SclTimePerformInt( SC_Lib * pLib, Abc_Ntk_t * pNtk, int nTreeCRatio, int fUseWireLoads, int fShowAll, int fPrintPath, int fDumpStats )
+void Abc_SclTimePerformInt( SC_Lib * pLib, Abc_Ntk_t * pNtk, int nTreeCRatio, int fUseWireLoads, int fUseSpefLoads, int fShowAll, int fPrintPath, int fDumpStats )
 {
     SC_Man * p;
-    p = Abc_SclManStart( pLib, pNtk, fUseWireLoads, 1, 0, nTreeCRatio );
+    p = Abc_SclManStart( pLib, pNtk, fUseWireLoads, fUseSpefLoads, 1, 0, nTreeCRatio );
     Abc_SclTimeNtkPrint( p, fShowAll, fPrintPath );
     if ( fDumpStats )
         Abc_SclDumpStats( p, "stats.txt", 0 );
@@ -689,12 +695,12 @@ void Abc_SclTimePerformInt( SC_Lib * pLib, Abc_Ntk_t * pNtk, int nTreeCRatio, in
   SeeAlso     []
 
 ***********************************************************************/
-void Abc_SclTimePerform( SC_Lib * pLib, Abc_Ntk_t * pNtk, int nTreeCRatio, int fUseWireLoads, int fShowAll, int fPrintPath, int fDumpStats )
+void Abc_SclTimePerform( SC_Lib * pLib, Abc_Ntk_t * pNtk, int nTreeCRatio, int fUseWireLoads, int fUseSpefLoads, int fShowAll, int fPrintPath, int fDumpStats )
 {
     Abc_Ntk_t * pNtkNew = pNtk;
     if ( pNtk->nBarBufs2 > 0 )
         pNtkNew = Abc_NtkDupDfsNoBarBufs( pNtk );
-    Abc_SclTimePerformInt( pLib, pNtkNew, nTreeCRatio, fUseWireLoads, fShowAll, fPrintPath, fDumpStats );
+    Abc_SclTimePerformInt( pLib, pNtkNew, nTreeCRatio, fUseWireLoads, fUseSpefLoads, fShowAll, fPrintPath, fDumpStats );
     if ( pNtk->nBarBufs2 > 0 )
         Abc_NtkDelete( pNtkNew );
 }
@@ -899,7 +905,7 @@ void Abc_SclPrintBuffers( SC_Lib * pLib, Abc_Ntk_t * pNtk, int fVerbose )
     int fUseWireLoads = 0;
     SC_Man * p;
     assert( Abc_NtkIsMappedLogic(pNtk) );
-    p = Abc_SclManStart( pLib, pNtk, fUseWireLoads, 1, 0, 10000 ); 
+    p = Abc_SclManStart( pLib, pNtk, fUseWireLoads, 0, 1, 0, 10000 ); 
     Abc_SclPrintBufferTrees( p, pNtk ); 
 //    Abc_SclPrintFaninPairs( p, pNtk );
     Abc_SclManFree( p );

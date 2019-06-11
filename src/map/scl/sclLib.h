@@ -88,6 +88,7 @@ struct SC_SizePars_
     int        fUseDept;
     int        fDumpStats;
     int        fUseWireLoads;
+    int        fUseSpefLoads;
     int        fVerbose;
     int        fVeryVerbose;
 };
@@ -102,6 +103,7 @@ struct SC_BusPars_
     int        fAddBufs;        // add buffers
     int        fBufPis;         // use CI buffering
     int        fUseWireLoads;   // wire loads
+    int        fUseSpefLoads;   // spef loads
     int        fVerbose;        // verbose
     int        fVeryVerbose;    // verbose
 };

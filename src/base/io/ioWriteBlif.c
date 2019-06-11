@@ -623,6 +623,9 @@ int Io_NtkWriteNode( FILE * pFile, Abc_Obj_t * pNode, int Length )
         }
         else
         {
+            fprintf( pFile, "#gg" );
+            fprintf( pFile, "%d", pNode->Name);
+            fprintf( pFile, "\n");
             fprintf( pFile, ".gate" );
             RetValue = Io_NtkWriteNodeGate( pFile, pNode, Length );
             fprintf( pFile, "\n" );

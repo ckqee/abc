@@ -21,6 +21,8 @@
 #include "sclSize.h"
 #include "map/mio/mio.h"
 #include "base/main/main.h"
+#include <sys/stat.h>
+#include <tcl.h>
 
 ABC_NAMESPACE_IMPL_START
 
@@ -236,6 +238,116 @@ int Abc_SclCountMinSize( SC_Lib * pLib, Abc_Ntk_t * p, int fUseMax )
 
 /**Function*************************************************************
 
+  Synopsis    [Reads timing constraints using SDC parser from Synopsys.]
+
+  Description []
+               
+  SideEffects []
+
+  SeeAlso     []
+
+ ***********************************************************************/
+// Defining Callbacks...
+int parsedCreateClockCallback(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
+    char* period = argv[1];
+    char* portPin = argv[2];
+    char* name = argv[3];
+
+    // TODO: Currently only period is assigned... Missing support for the rest!
+    Abc_FrameSetClockPeriod( atof(period) );
+
+    return TCL_OK;
+}
+
+int parsedSetInputDelayCallback(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
+    char* portPin = argv[1];
+    char* clk = argv[2];
+    char* delayValue = argv[3];
+    
+    // TODO: Use these variables...
+    return TCL_OK;
+}
+
+int parsedSetMaxFanoutCallback(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
+    char* maxFanoutValue = argv[1];
+    char* ObjectList = argv[2];
+
+    // TODO: OnjectList not Supported!
+    Abc_FrameSetMaxFanout( atof(maxFanoutValue) );
+    return TCL_OK;
+}
+
+int parsedSetMaxTransitionCallback(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
+    char* maxTransValue = argv[1];
+    char* ObjectList = argv[2];
+    
+    // TODO: OnjectList not Supported!
+    Abc_FrameSetMaxTrans( atof(maxTransValue) ); 
+    return TCL_OK;
+}
+
+/* HELPER Template: define another callback function for another command we will support */
+int parseCOMMAND_NAME_CALLBACK(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
+    /* Don't change the order of the following argvs */
+    char* period = argv[1];
+    char* portPin = argv[2];
+    char* name = argv[3];
+    /* Don't change the order of the above argvs */
+
+    // TODO: replace the below code with setting the actual constraints in abc
+    // for example:
+    // printf("Port Pin: %s\n", portPin);
+
+    return TCL_OK;
+}
+
+// Defining the Abc_SclReadSDC function:
+void Abc_SclReadSDC( Abc_Frame_t * pAbc, char * pFileName, int fVerbose )
+{
+    char parseCommand[100];
+    strcpy(parseCommand, "sdc::parse_file ");
+
+    strcat(parseCommand, pFileName);
+
+    // initialize the tcl interpreter
+    Tcl_Interp *interp;
+    interp = Tcl_CreateInterp();
+    if(interp == NULL){
+        fprintf(stderr, "Error in Tcl_CreateInterp, aborting\n");
+    }
+    if(Tcl_Init(interp) == TCL_ERROR){
+        fprintf(stderr, "Error in Tcl_Init: %s\n", Tcl_GetStringResult(interp));
+    }
+    // register the defined function with the tcl interpreter
+    Tcl_CreateCommand(interp, "parsedSetInputDelayCallback", parsedSetInputDelayCallback, (ClientData) NULL, (ClientData) NULL);
+    Tcl_CreateCommand(interp, "parsedCreateClockCallback", parsedCreateClockCallback, (ClientData) NULL, (ClientData) NULL);
+    Tcl_CreateCommand(interp, "parsedSetMaxFanoutCallback", parsedSetMaxFanoutCallback, (ClientData) NULL, (ClientData) NULL);
+    Tcl_CreateCommand(interp, "parsedSetMaxTransitionCallback", parsedSetMaxTransitionCallback, (ClientData) NULL, (ClientData) NULL);
+
+    // TODO: register other defined functions here
+    // example: Tcl_CreateCommand(interp, "parseCOMMAND_NAME_CALLBACK", parseCOMMAND_NAME_CALLBACK, (ClientData) NULL, (ClientData) NULL);
+
+    // No need to change any of the below code
+    //int code = Tcl_EvalFile(interp, "./brown_parser.tcl");
+    
+    //printf("%s\n", __FILE__);
+
+    // FIXME: We are using reletive address to tcl file as of now... this needs fixing for systemwide use...
+    int code = Tcl_EvalFile(interp, "src/map/scl/brown_parser.tcl");
+    if(code == TCL_OK){
+        Tcl_Eval(interp, parseCommand);
+    } else
+    {
+        printf("SDC File Parsing Failed!\n");
+    }
+    //printf("SDC File Parsing Done!\n");
+
+    //if ( fVerbose ){
+        //printf( "Setting global clock period to be \"%f\".\n", Abc_FrameReadClockPeriod() );
+    //}
+}
+/**Function*************************************************************
+
   Synopsis    [Reads timing constraints.]
 
   Description []
@@ -310,11 +422,26 @@ void Abc_SclInsertBarBufs( Abc_Ntk_t * pNtk, Vec_Int_t * vBufs )
     Abc_NtkForEachObjVec( vBufs, pNtk, pObj, i )
         pObj->pData = NULL;
 }
+st__table * Abc_SclGetSpefNameCapTable(Abc_Ntk_t * pNtk, int capUnit)
+{
+    printf("Using Physical-aware timing analysis.\n");
+
+    char *pNtkName = Abc_NtkName(pNtk);
+    char pSpefFile[1000];
+    sprintf(pSpefFile, "abc/tools/spef_output/%s_gp.spef", pNtkName);
+
+    st__table * tNameToCap = 0;
+    printf("-- Parsing SPEF.\n");
+    tNameToCap = st__init_table(strcmp, st__strhash);
+    if (Abc_SclParseSpef(pSpefFile, tNameToCap, capUnit) != 1){
+        printf("Abc_SclParseSpef failed spectacularly!\n");
+    }
+    return tNameToCap;
+}
 
 ////////////////////////////////////////////////////////////////////////
 ///                       END OF FILE                                ///
 ////////////////////////////////////////////////////////////////////////
-
 
 ABC_NAMESPACE_IMPL_END
 

@@ -38,6 +38,7 @@ typedef struct Io_MvMod_t_ Io_MvMod_t; // parsing model
 typedef struct Io_MvMan_t_ Io_MvMan_t; // parsing manager
 
 Vec_Ptr_t *vGlobalLtlArray;
+Vec_Ptr_t *gateNames;
 
 struct Io_MvVar_t_
 {
@@ -113,10 +114,10 @@ static int               Io_MvParseLineSubckt( Io_MvMod_t * p, char * pLine );
 static Vec_Int_t *       Io_MvParseLineOnehot( Io_MvMod_t * p, char * pLine );
 static int               Io_MvParseLineMv( Io_MvMod_t * p, char * pLine );
 static int               Io_MvParseLineNamesMv( Io_MvMod_t * p, char * pLine, int fReset );
-static int               Io_MvParseLineNamesBlif( Io_MvMod_t * p, char * pLine );
+static int               Io_MvParseLineNamesBlif( Io_MvMod_t * p, char * pLine, int index );
 static int               Io_MvParseLineShortBlif( Io_MvMod_t * p, char * pLine );
 static int                 Io_MvParseLineLtlProperty( Io_MvMod_t * p, char * pLine );
-static int               Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens );
+static int               Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens, int index );
 static Io_MvVar_t *      Abc_NtkMvVarDup( Abc_Ntk_t * pNtk, Io_MvVar_t * pVar );
 
 static int               Io_MvCharIsSpace( char s )  { return s == ' ' || s == '\t' || s == '\r' || s == '\n';  }
@@ -729,7 +730,7 @@ static void Io_MvReadPreparse( Io_MvMan_t * p )
             fComment = 0;
             Vec_PtrPush( p->vLines, pCur + 1 );
         }
-        else if ( *pCur == '#' )
+        else if ( *pCur == '#' &&  *(pCur+1) != 'g' )
             fComment = 1;
         // remove comments
         if ( fComment )
@@ -756,6 +757,10 @@ static void Io_MvReadPreparse( Io_MvMan_t * p )
         // skip spaces at the beginning of the line
         while ( Io_MvCharIsSpace(*pCur++) );
         // parse directives
+        if ( *(pCur-1) == '#' && !strncmp(pCur, "g", 1))
+        {
+            Vec_PtrPush( gateNames,pCur);
+        }
         if ( *(pCur-1) != '.' )
             continue;
         if ( !strncmp(pCur, "names", 5) || !strncmp(pCur, "table", 5) || !strncmp(pCur, "gate", 4) )
@@ -788,6 +793,7 @@ static void Io_MvReadPreparse( Io_MvMan_t * p )
             p->pLatest->fBlackBox = 1;
         else if ( !strncmp(pCur, "model", 5) ) 
         {
+            gateNames = Vec_PtrAlloc( 512 );
             p->pLatest = Io_MvModAlloc();
             p->pLatest->pName = pCur;
             p->pLatest->pMan = p;
@@ -957,7 +963,7 @@ static Abc_Des_t * Io_MvParse( Io_MvMan_t * p )
         else
         {
             Vec_PtrForEachEntry( char *, pMod->vNames, pLine, k )
-                if ( !Io_MvParseLineNamesBlif( pMod, pLine ) )
+                if ( !Io_MvParseLineNamesBlif( pMod, pLine, k ) )
                     return NULL;
             Vec_PtrForEachEntry( char *, pMod->vShorts, pLine, k )
                 if ( !Io_MvParseLineShortBlif( pMod, pLine ) )
@@ -2070,7 +2076,7 @@ static char * Io_MvParseTableBlif( Io_MvMod_t * p, char * pTable, int nFanins )
   SeeAlso     []
 
 ***********************************************************************/
-static int Io_MvParseLineNamesBlif( Io_MvMod_t * p, char * pLine )
+static int Io_MvParseLineNamesBlif( Io_MvMod_t * p, char * pLine, int index )
 {
     Vec_Ptr_t * vTokens = p->pMan->vTokens;
     Abc_Obj_t * pNet, * pNode;
@@ -2079,7 +2085,7 @@ static int Io_MvParseLineNamesBlif( Io_MvMod_t * p, char * pLine )
     Io_MvSplitIntoTokens( vTokens, pLine, '\0' );
     // parse the mapped node
     if ( !strcmp((char *)Vec_PtrEntry(vTokens,0), "gate") )
-        return Io_MvParseLineGateBlif( p, vTokens );
+        return Io_MvParseLineGateBlif( p, vTokens, index );
     // parse the regular name line
     assert( !strcmp((char *)Vec_PtrEntry(vTokens,0), "names") );
     pName = (char *)Vec_PtrEntryLast( vTokens );
@@ -2233,7 +2239,7 @@ static char * Io_ReadBlifCleanName( char * pName )
   SeeAlso     []
 
 ***********************************************************************/
-static int Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens )
+static int Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens, int index )
 {
     extern int Io_ReadBlifReorderFormalNames( Vec_Ptr_t * vTokens, Mio_Gate_t * pGate, Mio_Gate_t * pTwin );
     Mio_Library_t * pGenlib; 
@@ -2301,7 +2307,7 @@ static int Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens )
     {
         nNames  = vTokens->nSize - 3;
         ppNames = (char **)vTokens->pArray + 2;
-        pNode   = Io_ReadCreateNode( p->pNtk, ppNames[nNames], ppNames, nNames );
+        pNode   = Io_ReadCreateNode(p->pNtk, ppNames[nNames], ppNames, nNames );
         Abc_ObjSetData( pNode, pGate );
     }
     else
@@ -2320,7 +2326,8 @@ static int Io_MvParseLineGateBlif( Io_MvMod_t * p, Vec_Ptr_t * vTokens )
             Abc_ObjSetData( pNode, Mio_GateReadTwin(pGate) );
         }
     }
-
+    if(Vec_PtrSize(gateNames) > 1)
+        Abc_ObjSetName( pNode, atoi((char *)Vec_PtrEntry(gateNames,index)+2));
     return 1;
 }
 

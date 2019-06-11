@@ -157,8 +157,15 @@ extern ABC_DLL void            Abc_FrameReplacePoStatuses( Abc_Frame_t * pAbc, V
 
 extern ABC_DLL char *          Abc_FrameReadDrivingCell();              
 extern ABC_DLL float           Abc_FrameReadMaxLoad();
+extern ABC_DLL float           Abc_FrameReadClockPeriod();
+extern ABC_DLL float           Abc_FrameReadMaxFanout();
+extern ABC_DLL float           Abc_FrameReadMaxTrans();
+
 extern ABC_DLL void            Abc_FrameSetDrivingCell( char * pName );
 extern ABC_DLL void            Abc_FrameSetMaxLoad( float Load );
+extern ABC_DLL void            Abc_FrameSetClockPeriod( float ClockPeriod );
+extern ABC_DLL void            Abc_FrameSetMaxFanout( float FanoutValue );
+extern ABC_DLL void            Abc_FrameSetMaxTrans( float TransValue );
 
 extern ABC_DLL void            Abc_FrameSetArrayMapping( int * p );
 extern ABC_DLL void            Abc_FrameSetBoxes( int * p );

@@ -110,8 +110,15 @@ void        Abc_FrameSetBridgeMode()                         { if ( s_GlobalFram
 
 char *      Abc_FrameReadDrivingCell()                       { return s_GlobalFrame->pDrivingCell;    }              
 float       Abc_FrameReadMaxLoad()                           { return s_GlobalFrame->MaxLoad;         }      
+float       Abc_FrameReadClockPeriod()                       { return s_GlobalFrame->ClockPeriod;     }
+float       Abc_FrameReadMaxFanout()                         { return s_GlobalFrame->MaxFanout;       }      
+float       Abc_FrameReadMaxTrans()                          { return s_GlobalFrame->MaxTransition;   }      
+
 void        Abc_FrameSetDrivingCell( char * pName )          { ABC_FREE(s_GlobalFrame->pDrivingCell); s_GlobalFrame->pDrivingCell   = pName; }      
 void        Abc_FrameSetMaxLoad( float Load )                { s_GlobalFrame->MaxLoad = Load;         }      
+void        Abc_FrameSetClockPeriod( float ClockPeriod )     { s_GlobalFrame->ClockPeriod = ClockPeriod;   }      
+void        Abc_FrameSetMaxFanout( float FanoutValue )       { s_GlobalFrame->MaxFanout = FanoutValue;     }      
+void        Abc_FrameSetMaxTrans( float MaxTrans )           { s_GlobalFrame->MaxTransition = MaxTrans;    }      
 
 int *       Abc_FrameReadArrayMapping( Abc_Frame_t * pAbc )  { return pAbc->pArray;                                            }
 void        Abc_FrameSetArrayMapping( int * p )              { ABC_FREE( s_GlobalFrame->pArray ); s_GlobalFrame->pArray = p;   }      
