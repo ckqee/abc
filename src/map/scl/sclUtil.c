@@ -426,9 +426,8 @@ st__table * Abc_SclGetSpefNameCapTable(Abc_Ntk_t * pNtk, int capUnit)
 {
     printf("Using Physical-aware timing analysis.\n");
 
-    char *pNtkName = Abc_NtkName(pNtk);
     char pSpefFile[1000];
-    sprintf(pSpefFile, "abc/tools/spef_output/%s_gp.spef", pNtkName);
+    sprintf(pSpefFile, "tools/spef_output/netlist.spef");
 
     st__table * tNameToCap = 0;
     printf("-- Parsing SPEF.\n");
