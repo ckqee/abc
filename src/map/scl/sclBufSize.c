@@ -16,6 +16,13 @@
 
   Revision    [$Id: sclBufSize.c,v 1.0 2012/08/24 00:00:00 alanmi Exp $]
 
+  Modified By [Soheil Hashemi, Marina Neseem]
+
+  Affiliation [Brown University]
+
+  Date        [Started February 2019.]
+
+
 ***********************************************************************/
 
 #include "sclSize.h"
