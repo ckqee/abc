@@ -30,6 +30,7 @@
 #include "base/main/main.h"
 #include <sys/stat.h>
 #include <tcl.h>
+#include <unistd.h>
 
 ABC_NAMESPACE_IMPL_START
 
@@ -260,6 +261,8 @@ int parsedCreateClockCallback(ClientData clientData, Tcl_Interp *interp, int arg
     char* portPin = argv[2];
     char* name = argv[3];
 
+    printf("SDC PARSER :: Clock Period = %s\n",period);
+
     // TODO: Currently only period is assigned... Missing support for the rest!
     Abc_FrameSetClockPeriod( atof(period) );
 
@@ -271,13 +274,14 @@ int parsedSetInputDelayCallback(ClientData clientData, Tcl_Interp *interp, int a
     char* clk = argv[2];
     char* delayValue = argv[3];
     
-    // TODO: Use these variables...
     return TCL_OK;
 }
 
 int parsedSetMaxFanoutCallback(ClientData clientData, Tcl_Interp *interp, int argc, char *argv[]) {
     char* maxFanoutValue = argv[1];
     char* ObjectList = argv[2];
+
+    printf("SDC PARSER :: Maximum Fanout = %s\n",maxFanoutValue);
 
     // TODO: OnjectList not Supported!
     Abc_FrameSetMaxFanout( atof(maxFanoutValue) );
@@ -288,6 +292,8 @@ int parsedSetMaxTransitionCallback(ClientData clientData, Tcl_Interp *interp, in
     char* maxTransValue = argv[1];
     char* ObjectList = argv[2];
     
+    printf("SDC PARSER :: Maximum Transition = %s\n",maxTransValue);
+
     // TODO: OnjectList not Supported!
     Abc_FrameSetMaxTrans( atof(maxTransValue) ); 
     return TCL_OK;
@@ -339,10 +345,35 @@ void Abc_SclReadSDC( Abc_Frame_t * pAbc, char * pFileName, int fVerbose )
     
     //printf("%s\n", __FILE__);
 
-    // FIXME: We are using reletive address to tcl file as of now... this needs fixing for systemwide use...
-    int code = Tcl_EvalFile(interp, "src/map/scl/brown_parser.tcl");
+    char * openRoadEnvVar = getenv("OPENROAD");
+    char * sdcParser = "";
+    if(openRoadEnvVar != NULL)
+    {
+        sdcParser = strcat(openRoadEnvVar,"/share/yosys/brown_parser.tcl");
+        printf("OPENROAD env var defined\n");
+    }
+    else if( access("src/map/scl/brown_parser.tcl",F_OK) != -1)
+    {
+        sdcParser = "src/map/scl/brown_parser.tcl";
+        printf("Run inside abc\n");
+    }
+    else if( access("abc/src/map/scl/brown_parser.tcl",F_OK) != -1)
+    {
+        sdcParser = "abc/src/map/scl/brown_parser.tcl";
+        printf("Run inside yosys\n");
+    }
+    else 
+    {
+        printf("ERROR :: SDC Parser TCL script \"brown_parser.tcl\" is not found,\n");
+        printf("Either define the OPENROAD environment variable to the top directory of the source code,\n");
+        printf("or run from the top directory itself.\n");
+
+    }
+
+    int code = Tcl_EvalFile(interp, sdcParser);
     if(code == TCL_OK){
         Tcl_Eval(interp, parseCommand);
+        printf("SDC File Parsed Successfully\n");
     } else
     {
         printf("SDC File Parsing Failed!\n");
