@@ -1,3 +1,8 @@
+<a href="https://scan.coverity.com/projects/ckqee-abc">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/20323/badge.svg"/>
+</a>
+
 # Physical ABC -- A Physical Aware Timing Optimization Tool
 Physical ABC aims at improving the timing optimizaions done by ABC 
 through adding physical-awareness by parsing a generated SPEF 
